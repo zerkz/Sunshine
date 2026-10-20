@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <format>
+#include <future>
 #include <optional>
 #include <string>
 #include <thread>
@@ -337,6 +338,32 @@ TEST_F(SystemTrayTest, UpdatesAreIgnoredBeforeInitialization) {
   EXPECT_EQ(tray_data.notification_icon, nullptr);
   EXPECT_EQ(tray_data.notification_cb, nullptr);
   EXPECT_EQ(system_tray::end_tray(), 0);
+}
+
+TEST_F(SystemTrayTest, UnavailableTrayWaitsForShutdownWithoutStoppingServers) {
+  ASSERT_FALSE(system_tray::tray_initialized_for_testing());
+  auto shutdown_event = std::make_shared<safe::event_t<bool>>();
+  auto loop = std::async(std::launch::async, [shutdown_event]() {
+    system_tray::run_tray_until_exit(shutdown_event);
+  });
+
+  EXPECT_EQ(loop.wait_for(100ms), std::future_status::timeout);
+  EXPECT_FALSE(shutdown_event->view(0ms));
+
+  shutdown_event->raise(true);
+  loop.get();
+  EXPECT_TRUE(shutdown_event->view(0ms));
+  EXPECT_FALSE(system_tray::tray_initialized_for_testing());
+}
+
+TEST_F(SystemTrayTest, UnavailableTrayPreservesPendingShutdown) {
+  ASSERT_FALSE(system_tray::tray_initialized_for_testing());
+  auto shutdown_event = std::make_shared<safe::event_t<bool>>();
+  shutdown_event->raise(true);
+
+  system_tray::run_tray_until_exit(shutdown_event);
+
+  EXPECT_TRUE(shutdown_event->view(0ms));
 }
 
   #ifdef __APPLE__

@@ -95,6 +95,9 @@ namespace system_tray {
   /**
    * @brief Process tray events until exit and notify the application's workers.
    *
+   * If tray initialization failed, wait for shutdown without requesting it so Sunshine
+   * continues running without a tray icon. The shutdown event is not consumed.
+   *
    * @param shutdown_event Event used to stop Sunshine's server threads.
    */
   void run_tray_until_exit(const std::shared_ptr<safe::event_t<bool>> &shutdown_event);
